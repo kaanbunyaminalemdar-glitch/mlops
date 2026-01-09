@@ -23,4 +23,4 @@ def hash_feature(value: str, n_buckets: int = 1000) -> int:
     # Convert hex digest to integer
     hash_int = int(hash_obj.hexdigest(), 16)
     # Modulo to get bucket index
-    return -1 # BROKEN CODE FOR DEMO: This will fail unit tests!
+    return hash_int % n_buckets
