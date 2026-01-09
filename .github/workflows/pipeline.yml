@@ -7,52 +7,84 @@ on:
     branches: [ main ]
 
 jobs:
-  build-and-test:
+  lint:
     runs-on: ubuntu-latest
-    
     steps:
     - uses: actions/checkout@v3
-    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    - name: Lint with Pylint
+      run: pylint --fail-under=8.0 src/
+
+  unit-test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    - name: Run Unit Tests
+      run: |
+        export PYTHONPATH=$PYTHONPATH:.
+        pytest tests/unit/
+
+  build:
+    needs: [lint, unit-test]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Build Docker Image
+      run: docker build -t mlops-service .
+    # In a real scenario, we would push this image to a registry.
+    # For this homework, we will rebuild in the next stages or save/load.
+    # To keep it simple and avoid registry setup, we'll just verify build here.
+
+  component-test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    - name: Run Component Tests
+      run: |
+        export PYTHONPATH=$PYTHONPATH:.
+        pytest tests/component/
+
+  smoke-test:
+    needs: component-test
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
         
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        
-    - name: Lint with Pylint
-      run: |
-        # Only linting src directory for now, enforce code quality
-        # Fail if score is below 8.0/10
-        pylint --fail-under=8.0 src/
-        
-    - name: Run Unit Tests
-      run: |
-        export PYTHONPATH=$PYTHONPATH:.
-        pytest tests/unit/
-        
-    - name: Build Docker Image
-      run: |
-        docker build -t mlops-service .
-        
-    - name: Run Component Tests
-      run: |
-        export PYTHONPATH=$PYTHONPATH:.
-        pytest tests/component/
-        
+    - name: Build Docker Image (for run)
+      run: docker build -t mlops-service .
+      
     - name: Run Smoke Test
       run: |
         # Run container in background
         docker run -d -p 8000:8000 --name mlops-service-container mlops-service
-        
-        # Wait for container to start
         sleep 5
-        
-        # Execute smoke test script
         python tests/smoke/smoke_test.py http://localhost:8000
-        
-        # Cleanup
         docker stop mlops-service-container
