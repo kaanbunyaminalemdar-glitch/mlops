@@ -1,0 +1,58 @@
+name: MLOps CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        
+    - name: Lint with Pylint
+      run: |
+        # Only linting src directory for now, enforce code quality
+        # Fail if score is below 8.0/10
+        pylint --fail-under=8.0 src/
+        
+    - name: Run Unit Tests
+      run: |
+        export PYTHONPATH=$PYTHONPATH:.
+        pytest tests/unit/
+        
+    - name: Build Docker Image
+      run: |
+        docker build -t mlops-service .
+        
+    - name: Run Component Tests
+      run: |
+        export PYTHONPATH=$PYTHONPATH:.
+        pytest tests/component/
+        
+    - name: Run Smoke Test
+      run: |
+        # Run container in background
+        docker run -d -p 8000:8000 --name mlops-service-container mlops-service
+        
+        # Wait for container to start
+        sleep 5
+        
+        # Execute smoke test script
+        python tests/smoke/smoke_test.py http://localhost:8000
+        
+        # Cleanup
+        docker stop mlops-service-container
