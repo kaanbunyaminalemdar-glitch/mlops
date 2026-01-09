@@ -1,14 +1,24 @@
+"""
+Main Application Module.
+Serves the High-Cardinality Prediction Service via FastAPI.
+"""
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from src.feature_engineering import hash_feature
-import uvicorn
 
 app = FastAPI(title="High-Cardinality Prediction Service")
 
 class PredictionRequest(BaseModel):
+    """
+    Request model for prediction endpoint.
+    """
     feature_value: str
 
 class PredictionResponse(BaseModel):
+    """
+    Response model for prediction endpoint.
+    """
     feature_bucket: int
     predicted_value: float
     status: str
@@ -27,15 +37,15 @@ def predict(request: PredictionRequest):
     try:
         bucket = hash_feature(request.feature_value, n_buckets=100)
         # Mock model logic: simple deterministic value based on bucket
-        prediction = float(bucket) / 100.0 
-        
+        prediction = float(bucket) / 100.0
+
         return {
             "feature_bucket": bucket,
             "predicted_value": prediction,
             "status": "success"
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
